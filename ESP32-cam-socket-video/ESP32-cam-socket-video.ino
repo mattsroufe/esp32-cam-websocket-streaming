@@ -1,7 +1,7 @@
 #include "secrets.h"
 #include "esp_camera.h"
 #include <WiFi.h>
-#include "DHT.h"
+// #include "DHT.h"
 #include <ArduinoWebsockets.h>
 #define CAMERA_MODEL_AI_THINKER
 #include <stdio.h>
@@ -10,16 +10,16 @@
 #define DHT_PIN 2
 #define FLASH_PIN 4
 
-const char* ssid = NETWORK_NAME; // Your wifi name like "myWifiNetwork"
-const char* password = PASSWORD; // Your password to the wifi network like "password123"
-const char* websocket_server_host = "192.168.0.150";
-const uint16_t websocket_server_port1 = 8885;
+const char* ssid = WIFI_SSID; // Your wifi name like "myWifiNetwork"
+const char* password = WIFI_PASSWORD; // Your password to the wifi network like "password123"
+const char* websocket_server_host = "192.168.1.138";
+const uint16_t websocket_server_port1 = 8080;
 
 float hmem = 0;
 float tmem = 0;
 int flashlight = 0;
 
-DHT dht(DHT_PIN, DHT11);
+// DHT dht(DHT_PIN, DHT11);
 using namespace websockets;
 WebsocketsClient client;
 
@@ -60,6 +60,27 @@ void onMessageCallback(WebsocketsMessage message) {
     }
 }
 
+void sendCameraData(camera_fb_t* fb, const char* camera_id) {
+  // Calculate the total size: camera_id length + image data length
+  size_t camera_id_len = strlen(camera_id);
+  size_t total_size = camera_id_len + fb->len;
+
+  // Create a buffer to hold both the camera_id and the image data
+  char* combined_buffer = new char[total_size];
+
+  // Copy the camera_id into the buffer
+  memcpy(combined_buffer, camera_id, camera_id_len);
+
+  // Copy the image data into the buffer right after the camera_id
+  memcpy(combined_buffer + camera_id_len, fb->buf, fb->len);
+
+  // Send the combined buffer as a single binary message
+  client.sendBinary(combined_buffer, total_size);
+
+  // Clean up
+  delete[] combined_buffer;
+}
+
 void setup() 
 {
   camera_config_t config;
@@ -85,7 +106,7 @@ void setup()
   config.xclk_freq_hz = 10000000;
   config.pixel_format = PIXFORMAT_JPEG;
   config.frame_size = FRAMESIZE_SVGA;
-  config.jpeg_quality = 40;
+  config.jpeg_quality = 50; // 0 - 63 best to worst quality
   config.fb_count = 2;
 
   // camera init
@@ -101,7 +122,7 @@ void setup()
 
   while (WiFi.status() != WL_CONNECTED) { delay(500); }
   
-  dht.begin();
+  // dht.begin();
   pinMode(FLASH_PIN, OUTPUT);
   client.onMessage(onMessageCallback);
   client.onEvent(onEventsCallback);
@@ -112,7 +133,7 @@ void setup()
 
 void loop() 
 {
-  client.poll();
+  client.poll(); // maintain a websocket connection
   camera_fb_t *fb = esp_camera_fb_get();
   if(!fb)
   {
@@ -122,26 +143,34 @@ void loop()
 
   if(fb->format != PIXFORMAT_JPEG) { return; }
 
-  client.sendBinary((const char*) fb->buf, fb->len);
+  const char* camera_id = "CAM0";
+
+  // Send the byte array as binary data
+  // client.sendBinary((const char*)camera_id, strlen(camera_id));
+  // client.sendBinary((const char*) fb->buf, fb->len);
+
+  // Send the camera ID and the image frame
+  sendCameraData(fb, camera_id);
+
   esp_camera_fb_return(fb);
 
-  float h = dht.readHumidity();
-  float t = dht.readTemperature();
+  // float h = dht.readHumidity();
+  // float t = dht.readTemperature();
 
-  if(isnan(h)) {
-    h = hmem;
-  } else {
-    hmem = h;
-  }
+  // if(isnan(h)) {
+  //   h = hmem;
+  // } else {
+  //   hmem = h;
+  // }
 
-  if(isnan(t)) {
-    t = tmem;
-  } else {
-    tmem = t;
-  }
+  // if(isnan(t)) {
+  //   t = tmem;
+  // } else {
+  //   tmem = t;
+  // }
 
-  String output = "temp=" + String(t, 2) + ",hum=" + String(h, 2) + ",light=12;state:ON_BOARD_LED_1=" + String(flashlight);
-  Serial.println(output);
+  // String output = "temp=" + String(t, 2) + ",hum=" + String(h, 2) + ",light=12;state:ON_BOARD_LED_1=" + String(flashlight);
+  // Serial.println(output);
 
-  client.send(output);
+  // client.send(output);
 }
