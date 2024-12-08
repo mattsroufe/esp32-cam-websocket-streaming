@@ -1,25 +1,16 @@
 #include "secrets.h"
 #include "esp_camera.h"
 #include <WiFi.h>
-// #include "DHT.h"
 #include <ArduinoWebsockets.h>
 #define CAMERA_MODEL_AI_THINKER
 #include <stdio.h>
 #include "camera_pins.h"
 
-#define DHT_PIN 2
-#define FLASH_PIN 4
-
-const char* ssid = WIFI_SSID; // Your wifi name like "myWifiNetwork"
-const char* password = WIFI_PASSWORD; // Your password to the wifi network like "password123"
-const char* websocket_server_host = "192.168.1.138";
+const char* ssid = WIFI_SSID; // from secrets.h
+const char* password = WIFI_PASSWORD;
+const char* websocket_server_host = REMOTE_WS_SERVER_URL;
 const uint16_t websocket_server_port1 = 8080;
 
-float hmem = 0;
-float tmem = 0;
-int flashlight = 0;
-
-// DHT dht(DHT_PIN, DHT11);
 using namespace websockets;
 WebsocketsClient client;
 
@@ -44,13 +35,13 @@ void onMessageCallback(WebsocketsMessage message) {
         String value = data.substring(index + 1);
 
         if(key == "ON_BOARD_LED_1") {
-          if(value.toInt() == 1) {
-            flashlight = 1;
-            digitalWrite(FLASH_PIN, HIGH);
-          } else {
-            flashlight = 0;
-            digitalWrite(FLASH_PIN, LOW);
-          }
+          // if(value.toInt() == 1) {
+          //   flashlight = 1;
+          //   digitalWrite(FLASH_PIN, HIGH);
+          // } else {
+          //   flashlight = 0;
+          //   digitalWrite(FLASH_PIN, LOW);
+          // }
         }
         
         Serial.print("Key: ");
@@ -106,7 +97,7 @@ void setup()
   config.xclk_freq_hz = 10000000;
   config.pixel_format = PIXFORMAT_JPEG;
   config.frame_size = FRAMESIZE_SVGA;
-  config.jpeg_quality = 50; // 0 - 63 best to worst quality
+  config.jpeg_quality = 63; // 0 - 63 best to worst quality
   config.fb_count = 2;
 
   // camera init
@@ -121,9 +112,8 @@ void setup()
   WiFi.begin(ssid, password);
 
   while (WiFi.status() != WL_CONNECTED) { delay(500); }
+  // do something when connection fails
   
-  // dht.begin();
-  pinMode(FLASH_PIN, OUTPUT);
   client.onMessage(onMessageCallback);
   client.onEvent(onEventsCallback);
 
@@ -141,9 +131,9 @@ void loop()
     return;
   }
 
-  if(fb->format != PIXFORMAT_JPEG) { return; }
+  // if(fb->format != PIXFORMAT_JPEG) { return; }
 
-  const char* camera_id = "CAM0";
+  const char* camera_id = "CAM2";
 
   // Send the byte array as binary data
   // client.sendBinary((const char*)camera_id, strlen(camera_id));
@@ -153,24 +143,4 @@ void loop()
   sendCameraData(fb, camera_id);
 
   esp_camera_fb_return(fb);
-
-  // float h = dht.readHumidity();
-  // float t = dht.readTemperature();
-
-  // if(isnan(h)) {
-  //   h = hmem;
-  // } else {
-  //   hmem = h;
-  // }
-
-  // if(isnan(t)) {
-  //   t = tmem;
-  // } else {
-  //   tmem = t;
-  // }
-
-  // String output = "temp=" + String(t, 2) + ",hum=" + String(h, 2) + ",light=12;state:ON_BOARD_LED_1=" + String(flashlight);
-  // Serial.println(output);
-
-  // client.send(output);
 }
